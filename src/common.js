@@ -18,16 +18,16 @@ function setup(env) {
 	});
 
 	/**
-	* Active `debug` instances.
-	*/
-	createDebug.instances = [];
-
-	/**
 	* The currently active debug mode names, and names to skip.
 	*/
 
 	createDebug.names = [];
 	createDebug.skips = [];
+
+	/**
+	* Revision id of the currently active debug mode names, and names to skip, configuration.
+	*/
+	createDebug.namesRev = '';
 
 	/**
 	* Map of special "%n" handling functions, for the debug "format" argument.
@@ -115,29 +115,36 @@ function setup(env) {
 		}
 
 		debug.namespace = namespace;
-		debug.enabled = createDebug.enabled(namespace);
 		debug.useColors = createDebug.useColors();
 		debug.color = createDebug.selectColor(namespace);
 		debug.destroy = destroy;
 		debug.extend = extend;
+
+		Object.defineProperty(debug, 'enabled', {
+			enumerable: true,
+			get() {
+				if (this._namesRev !== createDebug.namesRev) {
+					this._enabled = createDebug.enabled(namespace);
+					this._namesRev = createDebug.namesRev;
+				}
+				return this._enabled;
+			},
+			set(v) {
+				this._namesRev = createDebug.namesRev;
+				this._enabled = v;
+			}
+		});
 
 		// Env-specific initialization logic for debug instances
 		if (typeof createDebug.init === 'function') {
 			createDebug.init(debug);
 		}
 
-		createDebug.instances.push(debug);
-
 		return debug;
 	}
 
 	function destroy() {
-		const index = createDebug.instances.indexOf(this);
-		if (index !== -1) {
-			createDebug.instances.splice(index, 1);
-			return true;
-		}
-		return false;
+		return true;
 	}
 
 	function extend(namespace, delimiter) {
@@ -159,6 +166,10 @@ function setup(env) {
 		createDebug.names = [];
 		createDebug.skips = [];
 
+		// Updates the revision number
+		const now = Date.now().toString(36);
+		createDebug.namesRev = now + (createDebug.namesRev.startsWith(now) ? '_' + (parseInt(createDebug.namesRev.split('_')[1] || '0', 36) + 1).toString(36) : '');
+
 		let i;
 		const split = (typeof namespaces === 'string' ? namespaces : '').split(/[\s,]+/);
 		const len = split.length;
@@ -176,11 +187,6 @@ function setup(env) {
 			} else {
 				createDebug.names.push(new RegExp('^' + namespaces + '$'));
 			}
-		}
-
-		for (i = 0; i < createDebug.instances.length; i++) {
-			const instance = createDebug.instances[i];
-			instance.enabled = createDebug.enabled(instance.namespace);
 		}
 	}
 
